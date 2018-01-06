@@ -8,3 +8,6 @@ isPressed	KEYWORD2
 isReleased	KEYWORD2
 onPressed	KEYWORD2
 onReleased	KEYWORD2
+onClicked	KEYWORD2
+onDoubleClicked	KEYWORD2
+onLongClicked	KEYWORD2

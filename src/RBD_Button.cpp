@@ -9,26 +9,25 @@
 
 namespace RBD {
   // input pullup enabled by default
-  Button::Button(int pin)
+  Button::Button(uint8_t pin)
   : _pressed_debounce(), _released_debounce() {
     _pin = pin;
     _inputPullup();
-    setDebounceTimeout(_debounce_timeout);
+    setDebounceTimeout(debounce_timeout);
   }
 
   // overloaded constructor to disable input pullup
-  Button::Button(int pin, bool input_pullup)
+  Button::Button(uint8_t pin, bool input_pullup)
   : _pressed_debounce(), _released_debounce() {
     _pin = pin;
     if(input_pullup) {_inputPullup();}
     else {_disableInputPullup();}
-    setDebounceTimeout(_debounce_timeout);
+    setDebounceTimeout(debounce_timeout);
   }
 
   void Button::setDebounceTimeout(unsigned long value) {
-    _debounce_timeout = value;
-    _pressed_debounce.setTimeout(_debounce_timeout);
-    _released_debounce.setTimeout(_debounce_timeout);
+    _pressed_debounce.setTimeout(value);
+    _released_debounce.setTimeout(value);
   }
 
   bool Button::isPressed() {
@@ -74,12 +73,38 @@ namespace RBD {
       return false;
     }
   }
+  
+  bool Button::onClicked() {
+	_processClick();  
+	if(_has_been_clicked) {
+		_has_been_clicked = false;
+		return true;
+	}
+	return false;	  
+  }
+
+  bool Button::onDoubleClicked() {
+	_processClick();  
+	if(_has_been_double_clicked) {
+		_has_been_double_clicked = false;
+		return true;
+	}
+	return false;	  
+  }
+
+  bool Button::onLongClicked() {
+	_processClick();  
+	if(_has_been_long_clicked) {
+		_has_been_long_clicked = false;
+		return true;
+	}
+	return false;	  
+  }
 
   void Button::invertReading() {
     _invert = !_invert;
   }
-
-
+  
   // private
 
   void Button::_inputPullup() {
@@ -88,5 +113,84 @@ namespace RBD {
 
   void Button::_disableInputPullup() {
     pinMode(_pin, INPUT);
+  }
+  
+  void Button::_processClick() {
+	bool isUnknown = false;  
+	if(onPressed()) {
+		switch(_click_state) {
+			case 0:
+				_click_timer.setTimeout(longclick_time);
+				_click_timer.restart();
+				_click_state = 1;
+				break;
+			case 2:
+				if(_click_timer.isExpired()) {
+					_has_been_clicked = true;
+					_click_timer.setTimeout(longclick_time);
+					_click_timer.restart();
+					_click_state = 1;
+				} else {
+					_click_timer.setTimeout(longclick_time);
+					_click_timer.restart();
+					_click_state = 3;
+				}
+				break;
+			default:
+				isUnknown = true;
+		}
+	} else if(onReleased()) {
+		switch(_click_state) {
+			case 1:
+				if(_click_timer.isActive()) {
+					_click_timer.setTimeout(doubleclick_gap);
+					_click_timer.restart();
+					_click_state = 2;
+				}
+				break;
+			case 3:
+				if(_click_timer.isActive()) {
+					_has_been_double_clicked = true;
+					_click_timer.stop();
+					_click_state = 0;
+				} else {
+					_has_been_clicked = true;
+					_has_been_long_clicked = true;
+					_click_state = 0;
+				}
+				break;
+			case 4:
+				_click_state = 0;
+				break;
+			default:
+				isUnknown = true;
+		}
+	} else {
+		switch(_click_state) {
+			case 1:
+				if(_click_timer.isExpired()) {
+					_has_been_long_clicked = true;
+					_click_state = 4;
+				}
+				break;
+			case 2:
+				if(_click_timer.isExpired()) {
+					_has_been_clicked = true;
+					_click_state = 0;
+				}
+				break;
+			case 3:
+				if(_click_timer.isExpired()) {
+					_has_been_clicked = true;
+					_has_been_long_clicked = true;
+					_click_state = 4;
+				}				
+				break;
+		}
+	}
+	if(isUnknown) {
+		_click_timer.stop();
+		_click_state = 0;
+	}
   }
 }
